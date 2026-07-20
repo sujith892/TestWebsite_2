@@ -442,10 +442,11 @@
       <button class="modal-close" onclick="closeAdminModal()">✕</button>
     </div>
     <div class="modal-body">
+      <h2 style="font-size:15px; margin:0 0 10px;" id="adminFormTitle">Create new user</h2>
       <div class="grid-2">
         <div class="field"><label>Username *</label><input id="au_username" autocomplete="off"></div>
         <div class="field"><label>Full name *</label><input id="au_fullname"></div>
-        <div class="field"><label>Temporary password *</label><input id="au_password" type="password" autocomplete="new-password"></div>
+        <div class="field"><label id="au_password_label">Temporary password *</label><input id="au_password" type="password" autocomplete="new-password"></div>
         <div class="field">
           <label>Role *</label>
           <select id="au_role">
@@ -459,13 +460,16 @@
           <select id="au_status"><option>Active</option><option>Inactive</option></select>
         </div>
       </div>
-      <button class="btn btn-primary" onclick="submitNewUser()">Create user</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary" id="au_submit_btn" onclick="submitNewUser()">Create user</button>
+        <button class="btn btn-ghost" id="au_cancel_btn" style="display:none;" onclick="cancelEditUser()">Cancel edit</button>
+      </div>
 
       <h2 style="font-size:15px; margin:24px 0 10px;">Existing users</h2>
       <div id="userListWrap" style="max-height:280px; overflow-y:auto;">
         <table class="pipeline-table">
-          <thead><tr><th>Username</th><th>Full name</th><th>Role</th><th>Status</th></tr></thead>
-          <tbody id="userListBody"><tr><td colspan="4" style="text-align:center; padding:16px; color:var(--ink-soft);">Loading…</td></tr></tbody>
+          <thead><tr><th>Username</th><th>Full name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="userListBody"><tr><td colspan="5" style="text-align:center; padding:16px; color:var(--ink-soft);">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -488,7 +492,7 @@
    ============================================================ */
 // Set this once to your deployed Apps Script Web App /exec URL.
 // This is a backend/deployment setting, not something end users configure.
-const API_URL = 'https://script.google.com/macros/s/AKfycbxr4WgAiJXc3CRf_Swuz4FxpKr7DXSdM1fhfg58fOZwllcqfjR_NCMq0HRUx8OABb3k5g/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzdWl0XmsG6pDzfl7zift1sMYQWAsnYhkYAuvygxJwkoGr-_qPdpih4yodEaV_qUPuDOQ/exec';
 
 let TOKEN = sessionStorage.getItem('pipeline_token') || '';
 let CURRENT_USER = sessionStorage.getItem('pipeline_user') || '';
@@ -534,10 +538,13 @@ async function api(action, payload) {
       body: JSON.stringify(body)
     });
     const data = await res.json();
-    if (data.success === false && data.message === 'Token Expired') {
+    if (data.success === false && (data.forceLogout || data.message === 'Token Expired')) {
       sessionStorage.clear();
       showLogin();
-      throw new Error('Session expired, please sign in again.');
+      const errEl = document.getElementById('loginError');
+      errEl.textContent = data.message || 'Session expired, please sign in again.';
+      errEl.style.display = 'block';
+      throw new Error(data.message || 'Session expired, please sign in again.');
     }
     return data;
   } finally {
@@ -823,6 +830,12 @@ function openProjectModal(id){
     document.getElementById('f_probability').value = STAGE_DEFAULT_PROBABILITY['Lead / Identified'];
     updateWeightedPreview();
   }
+  // Non-privileged roles (e.g. BD Executive) can only own their own records —
+  // the backend enforces this too, this just makes it visible in the UI.
+  const isPrivileged = ADMIN_ROLES.indexOf(CURRENT_ROLE) !== -1;
+  const ownerField = document.getElementById('f_owner');
+  ownerField.disabled = !isPrivileged;
+  if (!isPrivileged) ownerField.value = CURRENT_USER;
   onStageChange(); onStatusChange();
   document.getElementById('modalBackdrop').style.display = 'flex';
 }
@@ -933,9 +946,12 @@ async function archiveCurrentProject(){
 /* ============================================================
    ADMIN — user management (Admin / BD Head roles only)
    ============================================================ */
+let allUsers = [];
+let editingUsername = null;
+
 function openAdminModal(){
   document.getElementById('adminModalBackdrop').style.display = 'flex';
-  clearNewUserForm();
+  cancelEditUser();
   loadUserList();
 }
 function closeAdminModal(){
@@ -943,6 +959,7 @@ function closeAdminModal(){
 }
 function clearNewUserForm(){
   document.getElementById('au_username').value = '';
+  document.getElementById('au_username').disabled = false;
   document.getElementById('au_fullname').value = '';
   document.getElementById('au_password').value = '';
   document.getElementById('au_role').value = 'BD Executive';
@@ -950,26 +967,70 @@ function clearNewUserForm(){
 }
 async function loadUserList(){
   const body = document.getElementById('userListBody');
-  body.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:16px; color:var(--ink-soft);">Loading…</td></tr>';
+  body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--ink-soft);">Loading…</td></tr>';
   try {
     const data = await api('listUsers', {});
-    if (!data.success) { body.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:16px; color:var(--red);">${esc(data.message)}</td></tr>`; return; }
-    body.innerHTML = data.users.map(u => `
+    if (!data.success) { body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--red);">${esc(data.message)}</td></tr>`; return; }
+    allUsers = data.users;
+    body.innerHTML = allUsers.map(u => `
       <tr>
         <td data-label="Username">${esc(u.username)}</td>
         <td data-label="Full name">${esc(u.fullname)}</td>
         <td data-label="Role">${esc(u.role)}</td>
         <td data-label="Status"><span class="status-pill status-${u.status === 'Active' ? 'Open' : 'Lost'}">${esc(u.status)}</span></td>
-      </tr>`).join('') || '<tr><td colspan="4" style="text-align:center; padding:16px; color:var(--ink-soft);">No users yet</td></tr>';
-  } catch(e){ body.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:16px; color:var(--red);">${esc(e.message)}</td></tr>`; }
+        <td data-label="Actions">
+          <button class="btn btn-ghost" style="padding:4px 10px; font-size:12px;" onclick="startEditUser('${esc(u.username)}')">Edit</button>
+          <button class="btn btn-danger" style="padding:4px 10px; font-size:12px;" onclick="confirmDeleteUser('${esc(u.username)}')">Delete</button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--ink-soft);">No users yet</td></tr>';
+  } catch(e){ body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--red);">${esc(e.message)}</td></tr>`; }
+}
+function startEditUser(username){
+  const u = allUsers.find(x => x.username === username);
+  if (!u) return;
+  editingUsername = username;
+  document.getElementById('au_username').value = u.username;
+  document.getElementById('au_username').disabled = true; // username is the key, not editable
+  document.getElementById('au_fullname').value = u.fullname;
+  document.getElementById('au_password').value = '';
+  document.getElementById('au_role').value = u.role;
+  document.getElementById('au_status').value = u.status;
+  document.getElementById('adminFormTitle').textContent = 'Edit user — ' + u.username;
+  document.getElementById('au_password_label').textContent = 'New password (leave blank to keep current)';
+  document.getElementById('au_submit_btn').textContent = 'Save changes';
+  document.getElementById('au_cancel_btn').style.display = 'inline-flex';
+}
+function cancelEditUser(){
+  editingUsername = null;
+  clearNewUserForm();
+  document.getElementById('adminFormTitle').textContent = 'Create new user';
+  document.getElementById('au_password_label').textContent = 'Temporary password *';
+  document.getElementById('au_submit_btn').textContent = 'Create user';
+  document.getElementById('au_cancel_btn').style.display = 'none';
 }
 async function submitNewUser(){
+  const fullname = document.getElementById('au_fullname').value.trim();
+  const password = document.getElementById('au_password').value;
+  const role = document.getElementById('au_role').value;
+  const status = document.getElementById('au_status').value;
+
+  if (editingUsername) {
+    if (!fullname) { toast('Full name is required', true); return; }
+    try {
+      const updates = { fullname, role, status };
+      if (password) updates.password = password;
+      const data = await api('updateUser', { username: editingUsername, updates });
+      if (!data.success) { toast(data.message, true); return; }
+      toast('User updated');
+      cancelEditUser();
+      loadUserList();
+    } catch(e){ toast(e.message, true); }
+    return;
+  }
+
   const newUser = {
     username: document.getElementById('au_username').value.trim(),
-    fullname: document.getElementById('au_fullname').value.trim(),
-    password: document.getElementById('au_password').value,
-    role: document.getElementById('au_role').value,
-    status: document.getElementById('au_status').value
+    fullname, password, role, status
   };
   if (!newUser.username || !newUser.fullname || !newUser.password) {
     toast('Username, full name and password are required', true); return;
@@ -979,6 +1040,16 @@ async function submitNewUser(){
     if (!data.success) { toast(data.message, true); return; }
     toast('User created');
     clearNewUserForm();
+    loadUserList();
+  } catch(e){ toast(e.message, true); }
+}
+async function confirmDeleteUser(username){
+  if (!confirm(`Permanently delete user "${username}"? This cannot be undone.`)) return;
+  try {
+    const data = await api('deleteUser', { username });
+    if (!data.success) { toast(data.message, true); return; }
+    toast('User deleted');
+    if (editingUsername === username) cancelEditUser();
     loadUserList();
   } catch(e){ toast(e.message, true); }
 }
@@ -1052,7 +1123,7 @@ function toast(msg, isError){
   toastTimer = setTimeout(()=>el.classList.remove('show'), 3200);
 }
 
-/*test comments
+/* test
 /* ============================================================
    INIT
    ============================================================ */
