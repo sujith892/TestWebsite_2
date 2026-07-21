@@ -133,27 +133,28 @@
   .chip button{ background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:13px; line-height:1; padding:0; }
 
   /* ---------- Board view ---------- */
-  #boardView{ display:flex; gap:14px; overflow-x:auto; padding:20px 24px 40px; align-items:flex-start; }
+  #boardView{ display:flex; gap:10px; overflow-x:hidden; padding:16px 16px 32px; align-items:flex-start; }
   .stage-col{
-    flex:0 0 280px; background:var(--slate-soft); border-radius:10px; border:1px solid var(--line-soft);
+    flex:1 1 0; min-width:0; background:var(--slate-soft); border-radius:10px; border:1px solid var(--line-soft);
     display:flex; flex-direction:column; max-height:calc(100vh - 220px);
   }
-  .stage-head{ padding:12px 14px 10px; border-bottom:1px solid var(--line); }
-  .stage-name{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink); }
-  .stage-meta{ font-family:var(--font-main); font-size:11px; color:var(--ink-soft); margin-top:4px; display:flex; justify-content:space-between; }
-  .stage-body{ padding:10px; overflow-y:auto; flex:1; min-height:60px; }
+  .stage-head{ padding:10px 10px 8px; border-bottom:1px solid var(--line); }
+  .stage-name{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stage-meta{ font-family:var(--font-main); font-size:10px; color:var(--ink-soft); margin-top:4px; display:flex; flex-direction:column; gap:2px; }
+  .stage-body{ padding:8px; overflow-y:auto; flex:1; min-height:60px; }
   .stage-body.drag-over{ background:var(--teal-soft); }
   .card{
-    background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px 12px 12px 14px;
+    background:#fff; border:1px solid var(--line); border-radius:8px; padding:10px 10px 10px 12px;
     margin-bottom:10px; box-shadow:var(--shadow); cursor:grab; position:relative; border-left:4px solid var(--line);
-    transition:transform .1s ease;
+    transition:transform .1s ease; min-width:0;
   }
   .card:hover{ transform:translateY(-1px); }
   .card.priority-High{ border-left-color:var(--red); }
   .card.priority-Medium{ border-left-color:var(--amber); }
   .card.priority-Low{ border-left-color:var(--teal); }
-  .card-title{ font-weight:600; font-size:13.5px; margin-bottom:2px; }
-  .card-client{ font-size:12px; color:var(--ink-soft); margin-bottom:8px; }
+  .card-title{ font-weight:600; font-size:13.5px; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .card-id{ font-family:var(--font-main); font-size:10.5px; color:var(--ink-soft); letter-spacing:0.02em; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .card-client{ font-size:12px; color:var(--ink-soft); margin-bottom:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .card-row{ display:flex; justify-content:space-between; align-items:center; font-size:12px; }
   .card-value{ font-family:var(--font-main); font-weight:600; color:var(--ink); }
   .card-owner{ color:var(--ink-soft); }
@@ -182,7 +183,8 @@
   .stage-pill{ font-size:11px; padding:3px 8px; border-radius:12px; background:var(--slate-soft); border:1px solid var(--line); color:var(--ink-soft); white-space:nowrap; }
   .status-pill{ font-size:11px; padding:3px 8px; border-radius:12px; font-weight:600; white-space:nowrap; }
   .status-Open{ background:var(--teal-soft); color:var(--teal); }
-  .status-Won{ background:var(--blue); color:#fff; }
+  .status-Pipeline{ background:var(--blue-soft); color:var(--blue); }
+  .status-InProgress{ background:var(--amber-soft); color:var(--amber); }
   .status-Delivered{ background:var(--ink); color:#fff; }
   .status-Lost{ background:var(--red-soft); color:var(--red); }
 
@@ -321,7 +323,7 @@
     <select class="filter-select" id="filterStage" onchange="refreshProjects()"><option value="">All stages</option></select>
     <select class="filter-select" id="filterStatus" onchange="refreshProjects()">
       <option value="">All statuses</option>
-      <option>Open</option><option>Won</option><option>Delivered</option><option>Lost</option>
+      <option>Open</option><option>Pipeline</option><option>InProgress</option><option>Delivered</option><option>Lost</option>
     </select>
     <select class="filter-select" id="filterPriority" onchange="refreshProjects()">
       <option value="">All priorities</option><option>High</option><option>Medium</option><option>Low</option>
@@ -355,11 +357,18 @@
       </div>
 
       <div class="tab-pane active" id="tab-details">
+        <div class="field" id="projectIdField" style="display:none;">
+          <label>Project ID</label>
+          <input id="f_projectId" disabled title="Auto-generated — cannot be edited">
+        </div>
         <div class="grid-2">
           <div class="field"><label>Project name *</label><input id="f_projectName"></div>
           <div class="field"><label>Client name *</label><input id="f_clientName"></div>
           <div class="field"><label>Contact person</label><input id="f_contactPerson"></div>
-          <div class="field"><label>Owner *</label><input id="f_owner" placeholder="BD executive"></div>
+          <div class="field">
+            <label>Owner *</label>
+            <select id="f_owner"></select>
+          </div>
           <div class="field"><label>Contact email</label><input id="f_contactEmail" type="email"></div>
           <div class="field"><label>Contact phone</label><input id="f_contactPhone"></div>
           <div class="field">
@@ -372,11 +381,11 @@
           <div class="field">
             <label>Status</label>
             <select id="f_status" onchange="onStatusChange()">
-              <option>Open</option><option>Won</option><option>Delivered</option><option>Lost</option>
+              <option>Open</option>
             </select>
           </div>
           <div class="field"><label>Deal value *</label><input id="f_dealValue" type="number" min="0" oninput="updateWeightedPreview()"></div>
-          <div class="field"><label>Probability (%)</label><input id="f_probability" type="number" min="0" max="100" oninput="updateWeightedPreview()"></div>
+          <div class="field"><label>Probability (%)</label><input id="f_probability" type="number" min="0" max="100" disabled title="Auto-set from stage — not editable"></div>
           <div class="field">
             <label>Source</label>
             <select id="f_source">
@@ -384,15 +393,23 @@
               <option>Event</option><option>Partner</option><option>Existing Client</option>
             </select>
           </div>
-          <div class="field"><label>Engagement type</label><input id="f_engagementType"></div>
+          <div class="field">
+            <label>Engagement type</label>
+            <select id="f_engagementType">
+              <option value="">—</option>
+              <option>Data &amp; Intelligence</option>
+              <option>Automation &amp; Operations</option>
+              <option>Digital Experiences</option>
+              <option>AI &amp; Microsoft Innovation</option>
+            </select>
+          </div>
           <div class="field">
             <label>Priority</label>
             <select id="f_priority"><option>Medium</option><option>High</option><option>Low</option></select>
           </div>
           <div class="field"><label>Expected close date *</label><input id="f_expectedCloseDate" type="date"></div>
-          <div class="field"><label>Next action</label><input id="f_nextAction"></div>
+          <div class="field"><label>Next action</label><input id="f_nextAction" disabled title="Auto-set from stage — not editable"></div>
           <div class="field"><label>Next action date</label><input id="f_nextActionDate" type="date"></div>
-          <div class="field"><label>Tags (comma separated)</label><input id="f_tags"></div>
         </div>
 
         <div class="field" id="lostReasonField" style="display:none;">
@@ -407,6 +424,10 @@
           </div>
         </div>
 
+        <div class="field">
+          <label>Tags (comma separated)</label>
+          <input id="f_tags" placeholder="e.g. Fintech, Enterprise, Renewal" title="Separate multiple tags with commas, e.g. Fintech, Enterprise, Renewal">
+        </div>
         <div class="field"><label>Notes</label><textarea id="f_notes" rows="3"></textarea></div>
         <div class="weighted-preview" id="weightedPreview">Weighted value: —</div>
       </div>
@@ -492,10 +513,11 @@
    ============================================================ */
 // Set this once to your deployed Apps Script Web App /exec URL.
 // This is a backend/deployment setting, not something end users configure.
-const API_URL = 'https://script.google.com/macros/s/AKfycbzdWl0XmsG6pDzfl7zift1sMYQWAsnYhkYAuvygxJwkoGr-_qPdpih4yodEaV_qUPuDOQ/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbw2m_Zn0czDYLzA4yJwnL5UXV-7KbuwY1exmOxDbvIfq8DvTmfpMZokM9glDLFvW4hW/exec';
 
 let TOKEN = sessionStorage.getItem('pipeline_token') || '';
 let CURRENT_USER = sessionStorage.getItem('pipeline_user') || '';
+let CURRENT_USERNAME = sessionStorage.getItem('pipeline_username') || '';
 let CURRENT_ROLE = sessionStorage.getItem('pipeline_role') || '';
 let allProjects = [];
 let currentView = 'board';
@@ -566,9 +588,11 @@ async function doLogin(){
     if (!data.success) { errEl.textContent = data.message || 'Login failed'; errEl.style.display='block'; return; }
     TOKEN = data.token;
     CURRENT_USER = data.user.fullname || data.user.username;
+    CURRENT_USERNAME = data.user.username;
     CURRENT_ROLE = data.user.role || '';
     sessionStorage.setItem('pipeline_token', TOKEN);
     sessionStorage.setItem('pipeline_user', CURRENT_USER);
+    sessionStorage.setItem('pipeline_username', CURRENT_USERNAME);
     sessionStorage.setItem('pipeline_role', CURRENT_ROLE);
     showApp();
   } catch(e){
@@ -599,8 +623,28 @@ function showApp(){
    BOOTSTRAP
    ============================================================ */
 async function bootstrap(){
+  await loadUserDirectory();
   await refreshDashboard();
   await refreshProjects();
+}
+
+// Maps username -> fullname so the app can always display owners by full
+// name while still storing/matching the unique username underneath.
+let userDirectory = {};
+async function loadUserDirectory(){
+  userDirectory = {};
+  userDirectory[CURRENT_USERNAME] = CURRENT_USER; // always know our own name
+  const isPrivileged = ADMIN_ROLES.indexOf(CURRENT_ROLE) !== -1;
+  if (!isPrivileged) return; // listUsers is admin-only; executives only ever see themselves anyway
+  try {
+    const data = await api('listUsers', {});
+    if (data.success) {
+      data.users.forEach(u => { userDirectory[u.username] = u.fullname; });
+    }
+  } catch(e){ /* non-fatal — falls back to showing usernames */ }
+}
+function ownerDisplay(username){
+  return userDirectory[username] || username || '';
 }
 
 function debouncedRefresh(){
@@ -652,7 +696,7 @@ function populateOwnerFilter(projects){
   const sel = document.getElementById('filterOwner');
   const current = sel.value;
   const owners = Array.from(new Set(projects.map(p=>p.owner).filter(Boolean))).sort();
-  sel.innerHTML = '<option value="">All owners</option>' + owners.map(o=>`<option ${o===current?'selected':''}>${esc(o)}</option>`).join('');
+  sel.innerHTML = '<option value="">All owners</option>' + owners.map(o=>`<option value="${esc(o)}" ${o===current?'selected':''}>${esc(ownerDisplay(o))}</option>`).join('');
 }
 function populateStageFilter(){
   const sel = document.getElementById('filterStage');
@@ -665,7 +709,8 @@ function renderChips(filters){
   const chips = [];
   Object.entries(filters).forEach(([k,v])=>{
     if (!v) return;
-    chips.push(`<div class="chip">${labelFor(k)}: ${esc(String(v))} <button onclick="clearFilter('${k}')">✕</button></div>`);
+    const displayVal = k === 'owner' ? ownerDisplay(v) : v;
+    chips.push(`<div class="chip">${labelFor(k)}: ${esc(String(displayVal))} <button onclick="clearFilter('${k}')">✕</button></div>`);
   });
   row.innerHTML = chips.join('');
 }
@@ -720,13 +765,14 @@ function renderBoard(){
 function cardHtml(p){
   const flags = flagsFor(p);
   return `
-  <div class="card priority-${p.priority||'Medium'}" draggable="true"
+  <div class="card priority-${p.priority||'Medium'}" draggable="true" title="${esc(p.projectName)} — ${esc(p.clientName)}"
        ondragstart="onDragStart(event,'${p.id}')" onclick="openProjectModal('${p.id}')">
+    <div class="card-id">${esc(p.id)}</div>
     <div class="card-title">${esc(p.projectName)}</div>
     <div class="card-client">${esc(p.clientName)}</div>
     <div class="card-row">
       <span class="card-value">${money(p.dealValue)}</span>
-      <span class="card-owner">${esc(p.owner||'')}</span>
+      <span class="card-owner">${esc(ownerDisplay(p.owner))}</span>
     </div>
     ${flags.length ? `<div class="card-flags">${flags.join('')}</div>` : ''}
   </div>`;
@@ -751,7 +797,7 @@ function flagsFor(p){
 function renderList(){
   const el = document.getElementById('listView');
   const cols = [
-    ['projectName','Project'], ['clientName','Client'], ['owner','Owner'], ['stage','Stage'],
+    ['id','Project ID'], ['projectName','Project'], ['clientName','Client'], ['owner','Owner'], ['stage','Stage'],
     ['dealValue','Value'], ['weightedValue','Weighted'], ['priority','Priority'],
     ['expectedCloseDate','Close date'], ['nextActionDate','Next action'], ['status','Status'], ['updatedAt','Updated']
   ];
@@ -759,9 +805,10 @@ function renderList(){
   const rows = allProjects.map(p=>{
     const flags = flagsFor(p);
     return `<tr class="priority-${p.priority||'Medium'}" onclick="openProjectModal('${p.id}')">
+      <td data-label="Project ID" class="mono">${esc(p.id)}</td>
       <td data-label="Project">${esc(p.projectName)} ${flags.join(' ')}</td>
       <td data-label="Client">${esc(p.clientName)}</td>
-      <td data-label="Owner">${esc(p.owner||'')}</td>
+      <td data-label="Owner">${esc(ownerDisplay(p.owner))}</td>
       <td data-label="Stage"><span class="stage-pill">${p.stage}</span></td>
       <td data-label="Value" class="mono">${money(p.dealValue)}</td>
       <td data-label="Weighted" class="mono">${money(p.weightedValue)}</td>
@@ -772,7 +819,7 @@ function renderList(){
       <td data-label="Updated" class="mono">${fmtDate(p.updatedAt)}</td>
     </tr>`;
   }).join('');
-  el.innerHTML = `<table class="pipeline-table"><thead><tr>${head}</tr></thead><tbody>${rows || '<tr><td colspan="11" style="text-align:center; padding:30px; color:var(--ink-soft);">No projects match these filters</td></tr>'}</tbody></table>`;
+  el.innerHTML = `<table class="pipeline-table"><thead><tr>${head}</tr></thead><tbody>${rows || '<tr><td colspan="12" style="text-align:center; padding:30px; color:var(--ink-soft);">No projects match these filters</td></tr>'}</tbody></table>`;
 }
 
 function sortBy(key){
@@ -801,9 +848,10 @@ async function onDrop(e, newStage){
     const updates = { stage: newStage, probability: defaultProb };
     if (newStage === 'Lost' && !project.lostReason) {
       const reason = prompt('Reason for loss:') || 'Not specified';
-      updates.status = 'Lost'; updates.lostReason = reason;
+      updates.lostReason = reason;
     }
-    if (newStage === 'Won') updates.status = 'Won';
+    // Status is resolved server-side from the new stage (Open/Lost are locked;
+    // Won defaults to "Pipeline") — no need to set it here.
     const data = await api('updateProject', { id: draggingId, updates });
     if (!data.success) { toast(data.message, true); return; }
     toast('Stage updated');
@@ -815,29 +863,68 @@ async function onDrop(e, newStage){
 /* ============================================================
    MODAL — create / edit project
    ============================================================ */
-function openProjectModal(id){
+async function openProjectModal(id){
   currentProjectId = id;
   document.getElementById('modalTitle').textContent = id ? 'Edit project' : 'New project';
   document.getElementById('archiveBtn').style.display = id ? 'inline-flex' : 'none';
   document.getElementById('activityTabBtn').style.display = id ? 'inline-flex' : 'none';
   switchTab('details');
   clearForm();
+
+  const isPrivileged = ADMIN_ROLES.indexOf(CURRENT_ROLE) !== -1;
+  await populateOwnerDropdown(isPrivileged);
+
+  let existingProject = null;
   if (id) {
-    const p = allProjects.find(x=>x.id===id);
-    if (p) fillForm(p);
+    existingProject = allProjects.find(x=>x.id===id);
+    if (existingProject) fillForm(existingProject);
     loadActivity(id);
+    document.getElementById('projectIdField').style.display = 'block';
+    document.getElementById('f_projectId').value = id;
   } else {
+    document.getElementById('projectIdField').style.display = 'block';
+    document.getElementById('f_projectId').value = '(auto-generated on save)';
     document.getElementById('f_probability').value = STAGE_DEFAULT_PROBABILITY['Lead / Identified'];
     updateWeightedPreview();
   }
+
   // Non-privileged roles (e.g. BD Executive) can only own their own records —
   // the backend enforces this too, this just makes it visible in the UI.
-  const isPrivileged = ADMIN_ROLES.indexOf(CURRENT_ROLE) !== -1;
   const ownerField = document.getElementById('f_owner');
-  ownerField.disabled = !isPrivileged;
-  if (!isPrivileged) ownerField.value = CURRENT_USER;
-  onStageChange(); onStatusChange();
+  if (!isPrivileged) {
+    ownerField.value = CURRENT_USERNAME;
+    ownerField.disabled = true;
+  } else {
+    ownerField.value = existingProject ? existingProject.owner : CURRENT_USERNAME;
+    ownerField.disabled = false;
+  }
+
+  onStageChange(existingProject ? existingProject.status : null);
   document.getElementById('modalBackdrop').style.display = 'flex';
+}
+
+// Builds the Owner dropdown, showing full names only (username stays the
+// underlying value). Admins/BD Head get every user (fetched via listUsers);
+// everyone else just gets themselves, disabled.
+async function populateOwnerDropdown(isPrivileged){
+  const ownerField = document.getElementById('f_owner');
+  if (!isPrivileged) {
+    ownerField.innerHTML = `<option value="${esc(CURRENT_USERNAME)}">${esc(CURRENT_USER)}</option>`;
+    return;
+  }
+  try {
+    const data = await api('listUsers', {});
+    if (data.success) {
+      data.users.forEach(u => { userDirectory[u.username] = u.fullname; });
+      ownerField.innerHTML = data.users.map(u =>
+        `<option value="${esc(u.username)}">${esc(u.fullname)}</option>`
+      ).join('');
+    } else {
+      ownerField.innerHTML = `<option value="${esc(CURRENT_USERNAME)}">${esc(CURRENT_USER)}</option>`;
+    }
+  } catch(e){
+    ownerField.innerHTML = `<option value="${esc(CURRENT_USERNAME)}">${esc(CURRENT_USER)}</option>`;
+  }
 }
 
 function closeModal(){ document.getElementById('modalBackdrop').style.display = 'none'; }
@@ -849,12 +936,13 @@ function switchTab(tab){
 }
 
 function clearForm(){
-  ['projectName','clientName','contactPerson','contactEmail','contactPhone','owner','engagementType',
+  ['projectName','clientName','contactPerson','contactEmail','contactPhone','engagementType',
    'expectedCloseDate','nextAction','nextActionDate','tags','notes','lostReason','deliveryDate'].forEach(f=>{
     document.getElementById('f_'+f).value = '';
   });
+  document.getElementById('f_projectId').value = '';
+  document.getElementById('projectIdField').style.display = 'none';
   document.getElementById('f_stage').value = 'Lead / Identified';
-  document.getElementById('f_status').value = 'Open';
   document.getElementById('f_priority').value = 'Medium';
   document.getElementById('f_source').value = '';
   document.getElementById('f_dealValue').value = '';
@@ -868,9 +956,7 @@ function fillForm(p){
   document.getElementById('f_contactPerson').value = p.contactPerson || '';
   document.getElementById('f_contactEmail').value = p.contactEmail || '';
   document.getElementById('f_contactPhone').value = p.contactPhone || '';
-  document.getElementById('f_owner').value = p.owner || '';
   document.getElementById('f_stage').value = p.stage || 'Lead / Identified';
-  document.getElementById('f_status').value = p.status || 'Open';
   document.getElementById('f_dealValue').value = p.dealValue || '';
   document.getElementById('f_probability').value = p.probability != null ? p.probability : '';
   document.getElementById('f_source').value = p.source || '';
@@ -887,12 +973,45 @@ function fillForm(p){
   updateWeightedPreview();
 }
 
-function onStageChange(){
+// Stage -> allowed status option(s). "Won" is the only stage with a real
+// choice (post-win delivery lifecycle); everything else is a single locked value.
+const STAGE_STATUS_OPTIONS = {
+  "Lead / Identified": ["Open"],
+  "Qualifying": ["Open"],
+  "Proposal Sent": ["Open"],
+  "Negotiation": ["Open"],
+  "Won": ["Pipeline", "InProgress", "Delivered"],
+  "Lost": ["Lost"]
+};
+
+// "Next action" is locked to whatever should happen next given the stage.
+const NEXT_ACTION_BY_STAGE = {
+  "Lead / Identified": "Qualifying",
+  "Qualifying": "Proposal Sent",
+  "Proposal Sent": "Negotiation",
+  "Negotiation": "Close deal (Won / Lost)",
+  "Won": "Deliver engagement",
+  "Lost": "Archive — no further action"
+};
+
+function onStageChange(preferredStatus){
   const stage = document.getElementById('f_stage').value;
-  if (!document.getElementById('f_probability').value) {
-    document.getElementById('f_probability').value = STAGE_DEFAULT_PROBABILITY[stage];
-  }
+  const statusSelect = document.getElementById('f_status');
+
+  // Probability and Next action are both fully locked to the stage — not editable.
+  document.getElementById('f_probability').value = STAGE_DEFAULT_PROBABILITY[stage];
+  document.getElementById('f_nextAction').value = NEXT_ACTION_BY_STAGE[stage] || '';
   updateWeightedPreview();
+
+  const options = STAGE_STATUS_OPTIONS[stage] || ["Open"];
+  const priorValue = (preferredStatus !== undefined && preferredStatus !== null) ? preferredStatus : statusSelect.value;
+  const defaultValue = options.indexOf(priorValue) !== -1 ? priorValue : options[0];
+
+  statusSelect.innerHTML = options.map(o => `<option>${o}</option>`).join('');
+  statusSelect.value = defaultValue;
+  statusSelect.disabled = options.length === 1; // locked unless Won gives a real choice
+
+  onStatusChange();
 }
 function onStatusChange(){
   const status = document.getElementById('f_status').value;
@@ -1123,7 +1242,7 @@ function toast(msg, isError){
   toastTimer = setTimeout(()=>el.classList.remove('show'), 3200);
 }
 
-/* test
+/* THIS IS A UAT VERSION
 /* ============================================================
    INIT
    ============================================================ */
